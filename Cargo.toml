@@ -1,0 +1,12 @@
+[package]
+name = "chunked_vec"
+version = "0.1.0"
+edition = "2021"
+authors = ["Your Name <your.email@example.com>"]
+description = "A vector-like data structure that stores elements in fixed-size chunks for better memory management"
+license = "MIT"
+repository = "https://github.com/QuarkPixel/chunked_vec"
+keywords = ["vector", "data-structure", "chunk"]
+categories = ["data-structures"]
+
+[dependencies]
