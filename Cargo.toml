@@ -1,8 +1,8 @@
 [package]
 name = "chunked_vec"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
-authors = ["Your Name <your.email@example.com>"]
+authors = ["XuancongMeng <m2462864403@gmail.com>"]
 description = "A vector-like data structure that stores elements in fixed-size chunks for better memory management"
 license = "MIT"
 repository = "https://github.com/QuarkPixel/chunked_vec"
