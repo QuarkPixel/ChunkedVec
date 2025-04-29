@@ -20,6 +20,8 @@ const DEFAULT_CHUNK_SIZE: usize = 64;
 
 mod chunked_vec;
 mod constructors;
+pub(crate) mod internal;
+mod operations;
 mod index;
 mod iter;
 mod traits;
