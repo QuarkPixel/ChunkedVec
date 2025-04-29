@@ -54,12 +54,12 @@ impl<T> ChunkedVec<T> {
     /// # Examples
     /// ```
     /// use chunked_vec::ChunkedVec;
-    /// let mut vec = ChunkedVec::<i32>::with_chunks(2);
+    /// let mut vec = ChunkedVec::<i32>::with_chunk_count(2);
     /// // This will allocate 2 chunks with total capacity of 16
     /// ```
     #[inline]
     #[must_use]
-    pub fn with_chunks(chunk_count: usize) -> Self {
+    pub fn with_chunk_count(chunk_count: usize) -> Self {
         Self {
             data: Vec::with_capacity(chunk_count),
             len: 0,
@@ -167,7 +167,7 @@ mod tests {
 
     #[test]
     fn test_with_chunks() {
-        let mut vec = ChunkedVec::with_chunks(2);
+        let mut vec = ChunkedVec::with_chunk_count(2);
         assert_eq!(vec.len(), 0);
         for i in 0..16 {
             vec.push(i);
