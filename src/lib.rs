@@ -24,4 +24,4 @@ mod index;
 mod iter;
 mod traits;
 
-pub use chunked_vec::ChunkedVec;
+pub use chunked_vec::*;

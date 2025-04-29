@@ -1,4 +1,4 @@
-use crate::ChunkedVec;
+use crate::{Chunk, ChunkedVec};
 
 impl<T, const N: usize> ChunkedVec<T, N> {
     pub fn push(&mut self, value: T) {
@@ -15,11 +15,11 @@ impl<T, const N: usize> ChunkedVec<T, N> {
         self.len += 1;
     }
 
-    fn create_new_chunk(value: T) -> Box<[T; N]> {
+    fn create_new_chunk(value: T) -> Chunk<T, N> {
         let mut chunk = Box::new_uninit_slice(N);
         // Initialize the first element
         chunk[0].write(value);
-        // Convert to Box<[T; N]>
+        // Convert to Box<Chunk<T, N>>
         unsafe {
             let ptr = Box::into_raw(chunk) as *mut [T; N];
             Box::from_raw(ptr)
@@ -45,7 +45,7 @@ impl<T, const N: usize> ChunkedVec<T, N> {
         self.data.capacity() * N
     }
 
-    pub fn get_chunk(&self, _index: usize) -> Option<&[T; N]> {
+    pub fn get_chunk(&self, _index: usize) -> Option<Chunk<T, N>> {
         unimplemented!();
         // self.data.get(index).map(|chunk| &**chunk)
     }
