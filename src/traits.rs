@@ -56,3 +56,48 @@ impl<T> Default for ChunkedVec<T> {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_new_chunked_vec() {
+        let vec: ChunkedVec<i32, 4> = ChunkedVec::with_chunk_size();
+        assert!(vec.is_empty());
+        assert_eq!(vec.len(), 0);
+    }
+
+    #[test]
+    fn test_push() {
+        let mut vec: ChunkedVec<i32, 4> = ChunkedVec::with_chunk_size();
+
+        // 测试添加第一个元素
+        vec.push(1);
+        assert_eq!(vec.len(), 1);
+        assert!(!vec.is_empty());
+
+        // 测试在同一个chunk中添加更多元素
+        vec.push(2);
+        vec.push(3);
+        vec.push(4);
+        assert_eq!(vec.len(), 4);
+
+        // 测试添加元素导致创建新的chunk
+        vec.push(5);
+        assert_eq!(vec.len(), 5);
+    }
+
+    #[test]
+    fn test_capacity() {
+        let mut vec: ChunkedVec<i32, 4> = ChunkedVec::with_chunk_size();
+
+        // 添加足够多的元素以创建新的chunk
+        for i in 0..5 {
+            vec.push(i);
+        }
+
+        // 容量应该至少能容纳两个chunk
+        assert!(vec.capacity() >= 8);
+    }
+}
