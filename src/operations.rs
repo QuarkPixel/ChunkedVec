@@ -32,6 +32,12 @@ impl<T, const N: usize> ChunkedVec<T, N> {
     pub fn capacity(&self) -> usize {
         self.data.capacity() * N
     }
+
+    #[inline]
+    #[must_use]
+    pub fn allocated_capacity(&self) -> usize {
+        self.data.len() * N
+    }
 }
 
 #[cfg(test)]
