@@ -1,6 +1,6 @@
 [package]
 name = "chunked_vec"
-version = "0.2.1"
+version = "0.3.0"
 edition = "2021"
 authors = ["XuancongMeng <m2462864403@gmail.com>"]
 description = "A vector-like data structure that stores elements in fixed-size chunks for better memory management"

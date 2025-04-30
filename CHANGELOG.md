@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.3.0] - 2025-04-30
+
+### Added
+
+- Added `ChunkedVecSized` type for compile-time fixed chunk size construction
+- Added `from` module to support constructing ChunkedVec from multiple types
+  - Implemented `FromIterator` trait
+  - Implemented `From<Vec<T>>` trait
+  - Implemented `From<[T; M]>` trait
+  - Implemented `From<&[T]>` trait
+- Added `allocated_capacity` method to query actual allocated capacity
+
+### Changed
+
+- Restructured project into modular components:
+  - Moved constructor-related code to `constructors` module
+  - Extracted `Chunk` type to separate implementation
+  - Optimized code organization
+- Improved `push()` method by removing `T: Copy + Default` constraint
+- Renamed `with_chunks` to `with_chunk_count` for better clarity
+- Applied Clippy suggestions to optimize code quality
+- Fixed repository link to point to the correct address
+
+### Enhanced
+
+- Significantly improved documentation:
+  - Added detailed usage examples
+  - Enhanced API documentation
+  - Optimized code comments
+
 ## [0.2.1] - 2025-04-28
 
 - Fixed repository link points to the correct address
