@@ -67,11 +67,11 @@ impl<T, const N: usize> IndexMut<usize> for ChunkedVec<T, N> {
 
 #[cfg(test)]
 mod test {
-    use super::*;
+    use crate::ChunkedVecSized;
 
     #[test]
     fn test_indexing() {
-        let mut vec = ChunkedVec::<u8, 4>::with_chunk_size();
+        let mut vec = ChunkedVecSized::<u8, 4>::new();
 
         vec.push(10);
         vec.push(20);
@@ -93,7 +93,7 @@ mod test {
 
     #[test]
     fn test_get() {
-        let mut vec = ChunkedVec::<i32, 4>::with_chunk_size();
+        let mut vec = ChunkedVecSized::<i32, 4>::new();
         vec.push(1);
         vec.push(2);
 
@@ -104,7 +104,7 @@ mod test {
 
     #[test]
     fn test_get_mut() {
-        let mut vec = ChunkedVec::<i32, 4>::with_chunk_size();
+        let mut vec = ChunkedVecSized::<i32, 4>::new();
         vec.push(1);
         vec.push(2);
 

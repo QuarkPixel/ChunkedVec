@@ -42,18 +42,20 @@ impl<T, const N: usize> ChunkedVec<T, N> {
 
 #[cfg(test)]
 mod tests {
+    use crate::ChunkedVecSized;
+
     use super::*;
 
     #[test]
     fn test_new_chunked_vec() {
-        let vec: ChunkedVec<i32, 4> = ChunkedVec::with_chunk_size();
+        let vec: ChunkedVec<i32, 4> = ChunkedVecSized::new();
         assert!(vec.is_empty());
         assert_eq!(vec.len(), 0);
     }
 
     #[test]
     fn test_push() {
-        let mut vec: ChunkedVec<i32, 4> = ChunkedVec::with_chunk_size();
+        let mut vec: ChunkedVec<i32, 4> = ChunkedVecSized::new();
 
         // 测试添加第一个元素
         vec.push(1);
@@ -73,7 +75,7 @@ mod tests {
 
     #[test]
     fn test_capacity() {
-        let mut vec: ChunkedVec<i32, 4> = ChunkedVec::with_chunk_size();
+        let mut vec: ChunkedVec<i32, 4> = ChunkedVecSized::new();
 
         // 添加足够多的元素以创建新的chunk
         for i in 0..5 {

@@ -8,4 +8,7 @@ pub struct ChunkedVec<T, const N: usize = { crate::DEFAULT_CHUNK_SIZE }> {
     pub(crate) len: usize,
 }
 
+pub struct ChunkedVecSized<T, const N: usize>(std::marker::PhantomData<T>);
+
 pub type Chunk<T, const N: usize = { crate::DEFAULT_CHUNK_SIZE }> = Box<[T; N]>;
+
