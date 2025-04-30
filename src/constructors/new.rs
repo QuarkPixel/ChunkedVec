@@ -43,7 +43,7 @@ impl<T, const N: usize> ChunkedVecSized<T, N> {
     #[inline]
     #[must_use]
     pub fn with_capacity(capacity: usize) -> ChunkedVec<T, N> {
-        let chunk_size = (capacity + N - 1) / N;
+        let chunk_size = capacity.div_ceil(N);
         ChunkedVec {
             data: Vec::with_capacity(chunk_size),
             len: 0,

@@ -9,7 +9,7 @@ use crate::ChunkedVec;
 /// # Examples
 /// ```
 /// use chunked_vec::ChunkedVec;
-/// 
+///
 /// let vec = vec![1, 2, 3, 4, 5];
 /// let chunked_vec: ChunkedVec<_> = vec.into_iter().collect();
 /// assert_eq!(chunked_vec.len(), 5);
@@ -34,14 +34,14 @@ impl<T> FromIterator<T> for ChunkedVec<T> {
 /// # Examples
 /// ```
 /// use chunked_vec::ChunkedVec;
-/// 
+///
 /// let vec = vec![1, 2, 3];
 /// let chunked_vec = ChunkedVec::from(vec);
 /// assert_eq!(chunked_vec[0], 1);
 /// ```
 impl<T> From<Vec<T>> for ChunkedVec<T> {
     fn from(vec: Vec<T>) -> Self {
-        Self::from_iter(vec.into_iter())
+        Self::from_iter(vec)
     }
 }
 
@@ -53,7 +53,7 @@ impl<T> From<Vec<T>> for ChunkedVec<T> {
 /// # Examples
 /// ```
 /// use chunked_vec::ChunkedVec;
-/// 
+///
 /// let array = [1, 2, 3];
 /// let chunked_vec = ChunkedVec::from(array);
 /// assert_eq!(chunked_vec[0], 1);
@@ -72,7 +72,7 @@ impl<T, const M: usize> From<[T; M]> for ChunkedVec<T> {
 /// # Examples
 /// ```
 /// use chunked_vec::ChunkedVec;
-/// 
+///
 /// let slice: &[i32] = &[1, 2, 3];
 /// let chunked_vec = ChunkedVec::from(slice);
 /// assert_eq!(chunked_vec[0], 1);

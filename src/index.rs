@@ -18,7 +18,7 @@ impl<T, const N: usize> ChunkedVec<T, N> {
     pub unsafe fn get_unchecked(&self, index: usize) -> &T {
         let chunk_idx = index / N;
         let offset = index % N;
-        &self.data.get_unchecked(chunk_idx).get_unchecked(offset)
+        self.data.get_unchecked(chunk_idx).get_unchecked(offset)
     }
 
     /// Returns a mutable reference to an element without performing bounds checking.
