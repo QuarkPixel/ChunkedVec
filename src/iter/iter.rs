@@ -1,11 +1,32 @@
 use crate::ChunkedVec;
 
+/// An iterator over the elements of a ChunkedVec.
+///
+/// This struct is created by the [`iter`] method on [`ChunkedVec`].
+/// See its documentation for more.
 pub struct Iter<'a, T, const N: usize> {
     pub(crate) vec: &'a ChunkedVec<T, N>,
     pub(crate) index: usize,
 }
 
 impl<T, const N: usize> ChunkedVec<T, N> {
+    /// Returns an iterator over the elements of the vector.
+    ///
+    /// The iterator yields all items from start to end.
+    ///
+    /// # Examples
+    /// ```
+    /// use chunked_vec::ChunkedVec;
+    /// let mut vec = ChunkedVec::new();
+    /// vec.push(1);
+    /// vec.push(2);
+    ///
+    /// let mut sum = 0;
+    /// for element in vec.iter() {
+    ///     sum += *element;
+    /// }
+    /// assert_eq!(sum, 3);
+    /// ```
     pub fn iter(&self) -> Iter<'_, T, N> {
         Iter {
             vec: self,

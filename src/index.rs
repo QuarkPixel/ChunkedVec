@@ -1,7 +1,19 @@
 use crate::ChunkedVec;
 use std::ops::{Index, IndexMut};
 
+/// Implementation of indexing operations for ChunkedVec.
+///
+/// This implementation provides various methods for accessing elements in the ChunkedVec,
+/// including safe and unsafe access methods, as well as implementations of the Index and
+/// IndexMut traits for convenient array-style access.
 impl<T, const N: usize> ChunkedVec<T, N> {
+    /// Returns a reference to an element without performing bounds checking.
+    ///
+    /// # Safety
+    /// Calling this method with an out-of-bounds index is undefined behavior.
+    ///
+    /// # Arguments
+    /// * `index` - The index of the element to access
     #[inline]
     pub unsafe fn get_unchecked(&self, index: usize) -> &T {
         let chunk_idx = index / N;
@@ -9,6 +21,13 @@ impl<T, const N: usize> ChunkedVec<T, N> {
         &self.data.get_unchecked(chunk_idx).get_unchecked(offset)
     }
 
+    /// Returns a mutable reference to an element without performing bounds checking.
+    ///
+    /// # Safety
+    /// Calling this method with an out-of-bounds index is undefined behavior.
+    ///
+    /// # Arguments
+    /// * `index` - The index of the element to access
     #[inline]
     pub unsafe fn get_unchecked_mut(&mut self, index: usize) -> &mut T {
         let chunk_idx = index / N;
@@ -16,6 +35,21 @@ impl<T, const N: usize> ChunkedVec<T, N> {
         &mut (*self.data.get_unchecked_mut(chunk_idx))[offset]
     }
 
+    /// Returns a reference to an element at the given index.
+    ///
+    /// Returns None if the index is out of bounds.
+    ///
+    /// # Arguments
+    /// * `index` - The index of the element to access
+    ///
+    /// # Examples
+    /// ```
+    /// use chunked_vec::ChunkedVec;
+    /// let mut vec = ChunkedVec::<i32>::new();
+    /// vec.push(1);
+    /// assert_eq!(vec.get(0), Some(&1));
+    /// assert_eq!(vec.get(1), None);
+    /// ```
     #[inline]
     pub fn get(&self, index: usize) -> Option<&T> {
         if index >= self.len {
@@ -25,6 +59,23 @@ impl<T, const N: usize> ChunkedVec<T, N> {
         }
     }
 
+    /// Returns a mutable reference to an element at the given index.
+    ///
+    /// Returns None if the index is out of bounds.
+    ///
+    /// # Arguments
+    /// * `index` - The index of the element to access
+    ///
+    /// # Examples
+    /// ```
+    /// use chunked_vec::ChunkedVec;
+    /// let mut vec = ChunkedVec::<i32>::new();
+    /// vec.push(1);
+    /// if let Some(x) = vec.get_mut(0) {
+    ///     *x = 10;
+    /// }
+    /// assert_eq!(vec[0], 10);
+    /// ```
     #[inline]
     pub fn get_mut(&mut self, index: usize) -> Option<&mut T> {
         if index >= self.len {
@@ -46,7 +97,7 @@ impl<T, const N: usize> Index<usize> for ChunkedVec<T, N> {
                 index, self.len
             );
         }
-        // Safety: 我们已经检查了索引边界
+        // Safety: We have already checked the index bounds
         unsafe { self.get_unchecked(index) }
     }
 }
@@ -60,7 +111,7 @@ impl<T, const N: usize> IndexMut<usize> for ChunkedVec<T, N> {
                 index, self.len
             );
         }
-        // Safety: 我们已经检查了索引边界
+        // Safety: We have already checked the index bounds
         unsafe { self.get_unchecked_mut(index) }
     }
 }

@@ -1,7 +1,7 @@
 use crate::{ChunkedVec, ChunkedVecSized};
 
 /// Implementation of creation methods for ChunkedVec with fixed chunk size.
-/// 
+///
 /// This implementation provides methods to create ChunkedVec instances with a compile-time fixed chunk size.
 /// The chunk size is specified through the type parameter `N` and cannot be changed after creation.
 impl<T, const N: usize> ChunkedVecSized<T, N> {
@@ -13,7 +13,7 @@ impl<T, const N: usize> ChunkedVecSized<T, N> {
     ///
     /// # Examples
     /// ```
-    /// use chunked_vec::ChunkedVec;
+    /// use chunked_vec::{ChunkedVecSized, ChunkedVec};
     /// let vec: ChunkedVec<i32, 8> = ChunkedVecSized::new();
     /// ```
     #[inline]
@@ -36,7 +36,7 @@ impl<T, const N: usize> ChunkedVecSized<T, N> {
     ///
     /// # Examples
     /// ```
-    /// use chunked_vec::ChunkedVec;
+    /// use chunked_vec::{ChunkedVecSized, ChunkedVec};
     /// let vec: ChunkedVec<i32, 8> = ChunkedVecSized::with_capacity(10);
     /// // This will allocate 2 chunks (ceiling(10/8) = 2) with total capacity of 16
     /// ```
@@ -61,7 +61,7 @@ impl<T, const N: usize> ChunkedVecSized<T, N> {
     ///
     /// # Examples
     /// ```
-    /// use chunked_vec::ChunkedVec;
+    /// use chunked_vec::{ChunkedVecSized, ChunkedVec};
     /// let vec: ChunkedVec<i32, 8> = ChunkedVecSized::with_chunk_count(2);
     /// // This will allocate 2 chunks with total capacity of 16
     /// ```
