@@ -18,6 +18,7 @@ impl<T, const N: usize> ChunkedVecSized<T, N> {
     /// ```
     #[inline]
     #[must_use]
+    #[allow(clippy::new_ret_no_self)]
     pub fn new() -> ChunkedVec<T, N> {
         ChunkedVec {
             data: Vec::new(),
@@ -135,6 +136,7 @@ impl<T> ChunkedVec<T> {
         ChunkedVecSized::with_chunk_count(chunk_count)
     }
 }
+
 #[cfg(test)]
 mod tests {
     use crate::{ChunkedVec, ChunkedVecSized};
