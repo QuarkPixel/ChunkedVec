@@ -17,6 +17,14 @@ impl<T> Default for ChunkedVec<T> {
     }
 }
 
+impl<T, const N: usize> Extend<T> for ChunkedVec<T, N> {
+    fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
+        for item in iter {
+            self.push(item);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
