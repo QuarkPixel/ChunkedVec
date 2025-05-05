@@ -23,7 +23,7 @@ mod constructors;
 pub(crate) mod internal;
 mod operations;
 mod index;
-mod iter;
+mod iterators;
 mod traits;
 
 pub use chunked_vec::*;
