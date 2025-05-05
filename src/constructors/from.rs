@@ -64,6 +64,25 @@ impl<T, const M: usize> From<[T; M]> for ChunkedVec<T> {
     }
 }
 
+/// Implements conversion from references to fixed-size arrays to `ChunkedVec<T>`.
+///
+/// This allows creating a `ChunkedVec` from a reference to any array of known size `M`.
+/// The conversion preserves the order of elements.
+///
+/// # Examples
+/// ```
+/// use chunked_vec::ChunkedVec;
+///
+/// let array = &[1, 2, 3];
+/// let chunked_vec = ChunkedVec::from(array);
+/// assert_eq!(chunked_vec[0], 1);
+/// ```
+impl<T: Clone, const M: usize> From<&[T; M]> for ChunkedVec<T> {
+    fn from(array: &[T; M]) -> Self {
+        Self::from_iter(array.iter().cloned())
+    }
+}
+
 /// Implements conversion from slices to `ChunkedVec<T>`.
 ///
 /// This implementation creates a new `ChunkedVec` by cloning elements from the slice.
@@ -113,6 +132,18 @@ mod tests {
         assert_eq!(chunked_vec[0], 2);
         assert_eq!(chunked_vec[1], 3);
         assert_eq!(chunked_vec[2], 1);
+    }
+
+    #[test]
+    fn test_from_array_ref() {
+        let array = [2, 3, 1];
+        let chunked_vec = ChunkedVec::from(&array);
+        assert_eq!(chunked_vec[0], 2);
+        assert_eq!(chunked_vec[1], 3);
+        assert_eq!(chunked_vec[2], 1);
+
+        // 原数组仍然可用
+        assert_eq!(array, [2, 3, 1]);
     }
 
     #[test]
