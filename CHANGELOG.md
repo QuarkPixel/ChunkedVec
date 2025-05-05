@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.1] - 2025-05-05
+
+### Added
+
+- Added `chunked_vec!` macro for simplified `ChunkedVec` creation
+- Implemented `Extend` trait for `ChunkedVec`
+- Implemented `From<&[T; M]>` trait for array references
+
+### Changed
+
+- Renamed `src/iter` directory to `src/iterators`
+
 ## [0.3.0] - 2025-04-30
 
 ### Added

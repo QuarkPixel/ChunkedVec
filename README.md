@@ -24,7 +24,7 @@ ChunkedVec is a vector-like data structure that stores elements in fixed-size ch
 use chunked_vec::ChunkedVec;
 
 fn main() {
-    let mut vec = ChunkedVec::<i32>::new();
+    let mut vec = ChunkedVec::new();
     vec.push(1);
     vec.push(2);
     vec.push(3);
@@ -35,18 +35,37 @@ fn main() {
 }
 ```
 
+### Using Macro for Quick Initialization
+```rust
+use chunked_vec::{chunked_vec, ChunkedVec};
+
+fn main() {
+    // Create an empty ChunkedVec
+    let vec: ChunkedVec<i32> = chunked_vec![];
+    assert_eq!(vec.len(), 0);
+
+    // Create a ChunkedVec with initial values
+    let vec = chunked_vec![1, 2, 3, 4, 5];
+    assert_eq!(vec[0], 1);
+
+    // Create a ChunkedVec with repeated values
+    let vec = chunked_vec![42; 5]; // [42, 42, 42, 42, 42]
+    assert_eq!(vec.len(), 5);
+}```
+
 ### Using Fixed Chunk Size
 
 ```rust
-use chunked_vec::ChunkedVecSized;
+use chunked_vec::{ChunkedVec, ChunkedVecSized};
 
 fn main() {
     // Create a ChunkedVec with chunk size of 8
     let mut vec: ChunkedVec<i32, 8> = ChunkedVecSized::new();
     vec.push(1);
-    
+
     // Pre-allocate space for elements
-    let mut vec = ChunkedVecSized::<i32, 8>::with_capacity(100);
+    let vec = ChunkedVecSized::<i32, 8>::with_capacity(100);
+    assert_eq!(vec.capacity(), 104);// Actual capacity of ChunkedVec rounds up to chunk size
 }
 ```
 
@@ -65,7 +84,7 @@ fn main() {
     let chunked = ChunkedVec::from(arr);
 
     // From slice
-    let slice = &[1, 2, 3];
+    let slice: &[i32] = &[1, 2, 3];
     let chunked = ChunkedVec::from(slice);
 
     // From iterator
@@ -102,6 +121,3 @@ This is an open learning project. Contributions and suggestions are welcome! Fee
 - Share your use cases and feedback
 - Help improve documentation
 ```
-
-
-        
