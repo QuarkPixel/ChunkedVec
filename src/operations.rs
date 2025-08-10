@@ -1,3 +1,4 @@
+use std::mem::MaybeUninit;
 use crate::ChunkedVec;
 
 /// Implementation of basic operations for ChunkedVec.
@@ -29,7 +30,7 @@ impl<T, const N: usize> ChunkedVec<T, N> {
             let chunk = Self::create_new_chunk(value);
             self.data.push(chunk);
         } else {
-            self.data[chunk_idx][offset] = value;
+            self.data[chunk_idx][offset] = MaybeUninit::new(value);
         }
         self.len += 1;
     }
