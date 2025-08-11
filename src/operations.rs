@@ -1,3 +1,6 @@
+use std::array::from_fn;
+use std::mem::MaybeUninit;
+use std::ptr;
 use crate::ChunkedVec;
 
 /// Implementation of basic operations for ChunkedVec.
@@ -32,6 +35,44 @@ impl<T, const N: usize> ChunkedVec<T, N> {
             self.data[chunk_idx][offset].write(value);
         }
         self.len += 1;
+    }
+
+    pub fn resize(&mut self, new_len: usize, value: T) where T: Clone {
+        let old_len = self.len;
+
+        if new_len > old_len {
+            let required_chunks = (new_len + N - 1) / N;
+            if required_chunks > self.data.len() {
+                self.data.resize_with(required_chunks, || {
+                    let arr: [MaybeUninit<T>; N] = from_fn(|_| MaybeUninit::uninit());
+                    Box::new(arr)
+                });
+            }
+
+            for i in old_len..new_len {
+                let chunk_idx = i / N;
+                let offset = i % N;
+                self.data[chunk_idx][offset].write(value.clone());
+            }
+        } else if new_len < old_len {
+            // 1. Dropar os elementos entre o novo e o antigo tamanho.
+            for i in new_len..old_len {
+                let chunk_idx = i / N;
+                let offset = i % N;
+                unsafe {
+                    let elem_ptr = self.data[chunk_idx][offset].as_mut_ptr();
+                    ptr::drop_in_place(elem_ptr);
+                }
+            }
+            let required_chunks = if new_len == 0 {
+                0
+            } else {
+                (new_len + N - 1) / N
+            };
+            self.data.truncate(required_chunks);
+        }
+
+        self.len = new_len;
     }
 
     /// Returns the number of elements in the vector.
