@@ -1,3 +1,5 @@
+use std::mem::MaybeUninit;
+
 /// A vector-like container that stores elements in fixed-size chunks, providing efficient
 /// memory allocation and element access.
 ///
@@ -46,5 +48,5 @@ pub struct ChunkedVecSized<T, const N: usize>(std::marker::PhantomData<T>);
 ///
 /// Each chunk is a boxed array of exactly `N` elements, where `N` is the chunk size.
 /// Using `Box` helps reduce stack pressure when chunk sizes are large.
-pub type Chunk<T, const N: usize = { crate::DEFAULT_CHUNK_SIZE }> = Box<[T; N]>;
+pub type Chunk<T, const N: usize = { crate::DEFAULT_CHUNK_SIZE }> = Box<[MaybeUninit<T>; N]>;
 
