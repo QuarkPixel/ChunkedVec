@@ -37,6 +37,31 @@ impl<T, const N: usize> ChunkedVec<T, N> {
         self.len += 1;
     }
 
+    /// Resizes the `ChunkedVec` in-place so that `len` is equal to `new_len`.
+    ///
+    /// If `new_len` is greater than `len`, the `Vec` is extended by the
+    /// difference, with each additional slot filled with `value`.
+    /// If `new_len` is less than `len`, the `Vec` is simply truncated.
+    ///
+    /// This method requires `T` to implement [`Clone`],
+    /// in order to be able to clone the passed value.
+    /// If you need more flexibility (or want to rely on [`Default`] instead of
+    /// [`Clone`]), use [`ChunkedVec::resize_with`].
+    /// If you only need to resize to a smaller size, use [`Vec::truncate`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if the new capacity exceeds `isize::MAX` _bytes_.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use chunked_vec::ChunkedVec;
+    /// let mut vec = ChunkedVec::<&str>::new();
+    /// vec.resize(3, "example");
+    /// let len = vec.len();
+    /// assert_eq!(len, 3);
+    /// ```
     pub fn resize(&mut self, new_len: usize, value: T) where T: Clone {
         let old_len = self.len;
 
@@ -73,6 +98,53 @@ impl<T, const N: usize> ChunkedVec<T, N> {
         }
 
         self.len = new_len;
+    }
+
+    pub fn remove(&mut self, index: usize) -> T {
+        if index >= self.len {
+            panic!("removal index (is {index}) should be < len (is {})", self.len);
+        }
+
+        unsafe {
+            let current_chunk_idx = index / N;
+            let offset = index % N;
+
+            let ret = ptr::read(self.data[current_chunk_idx].get_unchecked(offset).as_ptr());
+
+            let first_chunk_ptr = self.data.get_unchecked_mut(current_chunk_idx).as_mut_ptr();
+            let count = N - 1 - offset;
+            if count > 0 {
+                ptr::copy(
+                    first_chunk_ptr.add(offset + 1),
+                    first_chunk_ptr.add(offset),
+                    count,
+                );
+            }
+
+            let until_chunk_idx = (self.len - 1) / N;
+            for i in current_chunk_idx..until_chunk_idx {
+                let current_chunk_ptr = self.data.get_unchecked_mut(i).as_mut_ptr();
+                let next_chunk_ptr = self.data.get_unchecked_mut(i + 1).as_mut_ptr();
+
+                let val_from_next = ptr::read(next_chunk_ptr);
+                ptr::write(current_chunk_ptr.add(N - 1), val_from_next);
+                ptr::copy(
+                    next_chunk_ptr.add(1),
+                    next_chunk_ptr,
+                    N - 1,
+                );
+            }
+
+            let last_chunk_idx = self.len / N;
+            let offset = self.len % N;
+            *self.data[last_chunk_idx].get_unchecked_mut(offset) = MaybeUninit::uninit();
+
+            self.len -= 1;
+            let required_chunks = if self.len == 0 { 0 } else { (self.len + N - 1) / N };
+            self.data.truncate(required_chunks);
+
+            ret
+        }
     }
 
     /// Returns the number of elements in the vector.
