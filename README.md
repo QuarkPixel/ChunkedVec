@@ -51,7 +51,8 @@ fn main() {
     // Create a ChunkedVec with repeated values
     let vec = chunked_vec![42; 5]; // [42, 42, 42, 42, 42]
     assert_eq!(vec.len(), 5);
-}```
+}
+```
 
 ### Using Fixed Chunk Size
 
