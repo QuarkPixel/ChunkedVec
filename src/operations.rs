@@ -135,9 +135,11 @@ impl<T, const N: usize> ChunkedVec<T, N> {
                 );
             }
 
-            let last_chunk_idx = self.len / N;
-            let offset = self.len % N;
-            *self.data[last_chunk_idx].get_unchecked_mut(offset) = MaybeUninit::uninit();
+            if index < self.len - 1 {
+                let last_chunk_idx = self.len / N;
+                let offset = self.len % N;
+                *self.data[last_chunk_idx].get_unchecked_mut(offset) = MaybeUninit::uninit();
+            }
 
             self.len -= 1;
             let required_chunks = if self.len == 0 { 0 } else { (self.len + N - 1) / N };
