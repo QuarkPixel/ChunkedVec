@@ -1,7 +1,7 @@
+use crate::ChunkedVec;
 use std::array::from_fn;
 use std::mem::MaybeUninit;
 use std::ptr;
-use crate::ChunkedVec;
 
 /// Implementation of basic operations for ChunkedVec.
 ///
@@ -62,7 +62,10 @@ impl<T, const N: usize> ChunkedVec<T, N> {
     /// let len = vec.len();
     /// assert_eq!(len, 3);
     /// ```
-    pub fn resize(&mut self, new_len: usize, value: T) where T: Clone {
+    pub fn resize(&mut self, new_len: usize, value: T)
+    where
+        T: Clone,
+    {
         let old_len = self.len;
 
         if new_len > old_len {
@@ -217,9 +220,8 @@ impl<T, const N: usize> ChunkedVec<T, N> {
 
 #[cfg(test)]
 mod tests {
-    use crate::ChunkedVecSized;
-
     use super::*;
+    use crate::ChunkedVecSized;
 
     #[test]
     fn test_new_chunked_vec() {
@@ -229,7 +231,7 @@ mod tests {
     }
 
     #[test]
-    fn test_push() {
+    fn test_push_single_chunk() {
         let mut vec: ChunkedVec<i32, 4> = ChunkedVecSized::new();
 
         // Test adding the first element
@@ -242,22 +244,211 @@ mod tests {
         vec.push(3);
         vec.push(4);
         assert_eq!(vec.len(), 4);
+        assert_eq!(vec.allocated_capacity(), 4);
+    }
+
+    #[test]
+    fn test_push_multiple_chunks() {
+        let mut vec: ChunkedVec<i32, 4> = ChunkedVecSized::new();
 
         // Test adding element that causes creation of a new chunk
-        vec.push(5);
+        for i in 1..=5 {
+            vec.push(i);
+        }
         assert_eq!(vec.len(), 5);
+        assert_eq!(vec.allocated_capacity(), 8); // Two chunks allocated
     }
 
     #[test]
     fn test_capacity() {
         let mut vec: ChunkedVec<i32, 4> = ChunkedVecSized::new();
 
-        // Add enough elements to create a new chunk
-        for i in 0..5 {
+        // Add enough elements to create multiple chunks
+        for i in 0..9 {
             vec.push(i);
         }
 
-        // Capacity should be able to hold at least two chunks
-        assert!(vec.capacity() >= 8);
+        // Capacity should be able to hold at least three chunks
+        assert!(vec.capacity() >= 12);
+        assert_eq!(vec.allocated_capacity(), 12); // Exactly three chunks
+    }
+
+    #[test]
+    fn test_is_empty() {
+        let mut vec: ChunkedVec<i32, 4> = ChunkedVecSized::new();
+        assert!(vec.is_empty());
+
+        vec.push(1);
+        assert!(!vec.is_empty());
+
+        vec.push(2);
+        assert!(!vec.is_empty());
+    }
+
+    #[test]
+    fn test_resize_grow() {
+        let mut vec: ChunkedVec<i32, 3> = ChunkedVecSized::new();
+        vec.push(1);
+        vec.push(2);
+
+        vec.resize(5, 42);
+        assert_eq!(vec.len(), 5);
+        // Note: Can't directly test values without indexing implementation
+    }
+
+    #[test]
+    fn test_resize_shrink() {
+        let mut vec: ChunkedVec<i32, 3> = ChunkedVecSized::new();
+        for i in 1..=7 {
+            vec.push(i);
+        }
+        assert_eq!(vec.len(), 7);
+        assert_eq!(vec.allocated_capacity(), 9); // 3 chunks
+
+        vec.resize(4, 0);
+        assert_eq!(vec.len(), 4);
+        assert_eq!(vec.allocated_capacity(), 6); // 2 chunks after truncate
+    }
+
+    #[test]
+    fn test_resize_to_zero() {
+        let mut vec: ChunkedVec<i32, 3> = ChunkedVecSized::new();
+        for i in 1..=5 {
+            vec.push(i);
+        }
+
+        vec.resize(0, 0);
+        assert_eq!(vec.len(), 0);
+        assert!(vec.is_empty());
+        assert_eq!(vec.allocated_capacity(), 0);
+    }
+
+    #[test]
+    fn test_remove_first_element() {
+        let mut vec: ChunkedVec<i32, 3> = ChunkedVecSized::new();
+        vec.push(1);
+        vec.push(2);
+        vec.push(3);
+        vec.push(4);
+
+        let removed = vec.remove(0);
+        assert_eq!(removed, 1);
+        assert_eq!(vec.len(), 3);
+        // Vector should now be [2, 3, 4]
+    }
+
+    #[test]
+    fn test_remove_middle_element() {
+        let mut vec: ChunkedVec<i32, 3> = ChunkedVecSized::new();
+        for i in 1..=6 {
+            vec.push(i);
+        }
+
+        let removed = vec.remove(2);
+        assert_eq!(removed, 3);
+        assert_eq!(vec.len(), 5);
+        // Vector should now be [1, 2, 4, 5, 6]
+    }
+
+    #[test]
+    fn test_remove_last_element() {
+        let mut vec: ChunkedVec<i32, 3> = ChunkedVecSized::new();
+        vec.push(1);
+        vec.push(2);
+        vec.push(3);
+
+        let removed = vec.remove(2);
+        assert_eq!(removed, 3);
+        assert_eq!(vec.len(), 2);
+        // Vector should now be [1, 2]
+    }
+
+    #[test]
+    fn test_remove_single_element() {
+        let mut vec: ChunkedVec<i32, 3> = ChunkedVecSized::new();
+        vec.push(42);
+
+        let removed = vec.remove(0);
+        assert_eq!(removed, 42);
+        assert_eq!(vec.len(), 0);
+        assert!(vec.is_empty());
+        assert_eq!(vec.allocated_capacity(), 0);
+    }
+
+    #[test]
+    fn test_remove_across_chunks() {
+        let mut vec: ChunkedVec<i32, 2> = ChunkedVecSized::new();
+        for i in 1..=7 {
+            vec.push(i);
+        }
+        // Chunks: [1,2], [3,4], [5,6], [7]
+
+        let removed = vec.remove(1); // Remove second element
+        assert_eq!(removed, 2);
+        assert_eq!(vec.len(), 6);
+        // Should now be [1,3], [4,5], [6,7]
+    }
+
+    #[test]
+    fn test_remove_causes_chunk_deallocation() {
+        let mut vec: ChunkedVec<i32, 3> = ChunkedVecSized::new();
+        for i in 1..=7 {
+            vec.push(i);
+        }
+        assert_eq!(vec.allocated_capacity(), 9); // 3 chunks
+
+        // Remove elements to cause chunk deallocation
+        vec.remove(6); // Remove last element
+        assert_eq!(vec.len(), 6);
+        assert_eq!(vec.allocated_capacity(), 6); // Should still be 2 chunks
+
+        vec.remove(5); // Remove what's now the last element
+        assert_eq!(vec.len(), 5);
+        vec.remove(4);
+        assert_eq!(vec.len(), 4);
+        vec.remove(3);
+        assert_eq!(vec.len(), 3);
+        assert_eq!(vec.allocated_capacity(), 3); // Should be 1 chunk now
+    }
+
+    #[test]
+    #[should_panic(expected = "removal index (is 5) should be < len (is 3)")]
+    fn test_remove_out_of_bounds() {
+        let mut vec: ChunkedVec<i32, 3> = ChunkedVecSized::new();
+        vec.push(1);
+        vec.push(2);
+        vec.push(3);
+
+        vec.remove(5); // This should panic
+    }
+
+    #[test]
+    #[should_panic(expected = "removal index (is 0) should be < len (is 0)")]
+    fn test_remove_empty_vec() {
+        let mut vec: ChunkedVec<i32, 3> = ChunkedVecSized::new();
+        vec.remove(0); // This should panic
+    }
+
+    #[test]
+    fn test_remove_with_drop_types() {
+        use std::rc::Rc;
+
+        let mut vec: ChunkedVec<Rc<i32>, 3> = ChunkedVecSized::new();
+        let val1 = Rc::new(1);
+        let val2 = Rc::new(2);
+        let val3 = Rc::new(3);
+
+        vec.push(val1.clone());
+        vec.push(val2.clone());
+        vec.push(val3.clone());
+
+        assert_eq!(Rc::strong_count(&val2), 2); // One in vec, one in our variable
+        let removed = vec.remove(1);
+        assert_eq!(*removed, 2);
+        assert_eq!(Rc::strong_count(&val2), 2); // Now one in removed, one in our variable
+        assert_eq!(vec.len(), 2);
+
+        drop(removed);
+        assert_eq!(Rc::strong_count(&val2), 1); // Now only our variable holds it
     }
 }
