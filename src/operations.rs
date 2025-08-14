@@ -102,15 +102,19 @@ impl<T, const N: usize> ChunkedVec<T, N> {
 
     pub fn remove(&mut self, index: usize) -> T {
         if index >= self.len {
-            panic!("removal index (is {index}) should be < len (is {})", self.len);
+            panic!(
+                "removal index (is {index}) should be < len (is {})",
+                self.len
+            );
         }
+        let current_chunk_idx = index / N;
+        let offset = index % N;
 
         unsafe {
-            let current_chunk_idx = index / N;
-            let offset = index % N;
-
+            // Read the element to be removed
             let ret = ptr::read(self.data[current_chunk_idx].get_unchecked(offset).as_ptr());
 
+            // Shift elements within the current chunk
             let first_chunk_ptr = self.data.get_unchecked_mut(current_chunk_idx).as_mut_ptr();
             let count = N - 1 - offset;
             if count > 0 {
@@ -121,6 +125,7 @@ impl<T, const N: usize> ChunkedVec<T, N> {
                 );
             }
 
+            // Shift elements between chunks
             let until_chunk_idx = (self.len - 1) / N;
             for i in current_chunk_idx..until_chunk_idx {
                 let current_chunk_ptr = self.data.get_unchecked_mut(i).as_mut_ptr();
@@ -128,21 +133,15 @@ impl<T, const N: usize> ChunkedVec<T, N> {
 
                 let val_from_next = ptr::read(next_chunk_ptr);
                 ptr::write(current_chunk_ptr.add(N - 1), val_from_next);
-                ptr::copy(
-                    next_chunk_ptr.add(1),
-                    next_chunk_ptr,
-                    N - 1,
-                );
-            }
-
-            if index < self.len - 1 {
-                let last_chunk_idx = self.len / N;
-                let offset = self.len % N;
-                *self.data[last_chunk_idx].get_unchecked_mut(offset) = MaybeUninit::uninit();
+                ptr::copy(next_chunk_ptr.add(1), next_chunk_ptr, N - 1);
             }
 
             self.len -= 1;
-            let required_chunks = if self.len == 0 { 0 } else { (self.len + N - 1) / N };
+            let required_chunks = if self.len == 0 {
+                0
+            } else {
+                (self.len + N - 1) / N
+            };
             self.data.truncate(required_chunks);
 
             ret
