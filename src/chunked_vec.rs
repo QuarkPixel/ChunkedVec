@@ -34,6 +34,7 @@ use std::mem::MaybeUninit;
 /// assert_eq!(vec[1], 2);
 /// assert_eq!(vec.len(), 2);
 /// ```
+#[derive(Debug)]
 pub struct ChunkedVec<T, const N: usize = { crate::DEFAULT_CHUNK_SIZE }> {
     pub(crate) data: Vec<Chunk<T, N>>,
     pub(crate) len: usize,
@@ -49,4 +50,3 @@ pub struct ChunkedVecSized<T, const N: usize>(std::marker::PhantomData<T>);
 /// Each chunk is a boxed array of exactly `N` elements, where `N` is the chunk size.
 /// Using `Box` helps reduce stack pressure when chunk sizes are large.
 pub type Chunk<T, const N: usize = { crate::DEFAULT_CHUNK_SIZE }> = Box<[MaybeUninit<T>; N]>;
-
