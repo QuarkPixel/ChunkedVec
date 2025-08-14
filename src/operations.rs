@@ -110,15 +110,15 @@ impl<T, const N: usize> ChunkedVec<T, N> {
                 self.len
             );
         }
-        let current_chunk_idx = index / N;
-        let offset = index % N;
+
+        let (current_chunk_idx, offset) = self.chunk_and_offset(index);
 
         unsafe {
             // Read the element to be removed
-            let ret = ptr::read(self.data[current_chunk_idx].get_unchecked(offset).as_ptr());
+            let ret = ptr::read(self.get_elem_ptr(current_chunk_idx, offset));
 
             // Shift elements within the current chunk
-            let first_chunk_ptr = self.data.get_unchecked_mut(current_chunk_idx).as_mut_ptr();
+            let first_chunk_ptr = self.get_chunk_mut_ptr(current_chunk_idx);
             let count = N - 1 - offset;
             if count > 0 {
                 ptr::copy(
@@ -131,8 +131,8 @@ impl<T, const N: usize> ChunkedVec<T, N> {
             // Shift elements between chunks
             let until_chunk_idx = (self.len - 1) / N;
             for i in current_chunk_idx..until_chunk_idx {
-                let current_chunk_ptr = self.data.get_unchecked_mut(i).as_mut_ptr();
-                let next_chunk_ptr = self.data.get_unchecked_mut(i + 1).as_mut_ptr();
+                let current_chunk_ptr = self.get_chunk_mut_ptr(i);
+                let next_chunk_ptr = self.get_chunk_mut_ptr(i + 1);
 
                 let val_from_next = ptr::read(next_chunk_ptr);
                 ptr::write(current_chunk_ptr.add(N - 1), val_from_next);
@@ -182,20 +182,18 @@ impl<T, const N: usize> ChunkedVec<T, N> {
             panic!("swap_remove index (is {index}) should be < len (is {len})");
         }
 
-        let current_chunk_idx = index / N;
-        let offset = index % N;
+        let current_pos = self.chunk_and_offset(index);
         unsafe {
             // We replace self[index] with the last element. Note that if the
             // bounds check above succeeds there must be a last element (which
             // can be self[index] itself).
-            let current = self.data[current_chunk_idx]
-                .get_unchecked_mut(offset)
-                .as_mut_ptr();
+            let current = self.get_elem_mut_ptr(current_pos.0, current_pos.1);
             let ret = ptr::read(current);
-            let last = self.data[(len - 1) / N]
-                .get_unchecked((len - 1) % N)
-                .as_ptr();
+
+            let last_pos = self.chunk_and_offset(len - 1);
+            let last = self.get_elem_ptr(last_pos.0, last_pos.1);
             ptr::copy(last, current, 1);
+
             self.len -= 1;
             ret
         }
