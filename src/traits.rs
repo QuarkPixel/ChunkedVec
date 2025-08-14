@@ -17,6 +17,17 @@ impl<T> Default for ChunkedVec<T> {
     }
 }
 
+// TODO: Temporary implementation to cope with doctest
+// src/operations.rs:169
+impl<T, const N: usize, const M: usize> PartialEq<[T; M]> for ChunkedVec<T, N>
+where
+    T: PartialEq,
+{
+    fn eq(&self, other: &[T; M]) -> bool {
+        self.iter().eq(other.iter())
+    }
+}
+
 impl<T, const N: usize> Extend<T> for ChunkedVec<T, N> {
     fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
         for item in iter {
