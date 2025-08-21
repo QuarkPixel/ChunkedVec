@@ -84,6 +84,40 @@ impl<T, const N: usize> ChunkedVec<T, N> {
             Some(unsafe { self.get_unchecked_mut(index) })
         }
     }
+
+    /// Gets the chunk index and offset for a given element index.
+    ///
+    /// # Returns
+    /// A tuple of (chunk_index, offset_within_chunk)
+    #[inline]
+    #[must_use]
+    pub(crate) fn chunk_and_offset(&self, index: usize) -> (usize, usize) {
+        (index / N, index % N)
+    }
+
+    #[inline]
+    #[must_use]
+    pub(crate) unsafe fn get_chunk_ptr(&self, index: usize) -> *const T {
+        self.data.get_unchecked(index).as_ptr().cast()
+    }
+
+    #[inline]
+    #[must_use]
+    pub(crate) unsafe fn get_chunk_mut_ptr(&mut self, index: usize) -> *mut T {
+        self.data.get_unchecked_mut(index).as_mut_ptr().cast()
+    }
+
+    #[inline]
+    #[must_use]
+    pub(crate) unsafe fn get_elem_ptr(&self, index: usize, offset: usize) -> *const T {
+        self.get_chunk_ptr(index).add(offset).cast()
+    }
+
+    #[inline]
+    #[must_use]
+    pub(crate) unsafe fn get_elem_mut_ptr(&mut self, index: usize, offset: usize) -> *mut T {
+        self.get_chunk_mut_ptr(index).add(offset).cast()
+    }
 }
 
 impl<T, const N: usize> Index<usize> for ChunkedVec<T, N> {

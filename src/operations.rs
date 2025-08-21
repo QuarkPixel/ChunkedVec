@@ -110,15 +110,15 @@ impl<T, const N: usize> ChunkedVec<T, N> {
                 self.len
             );
         }
-        let current_chunk_idx = index / N;
-        let offset = index % N;
+
+        let (current_chunk_idx, offset) = self.chunk_and_offset(index);
 
         unsafe {
             // Read the element to be removed
-            let ret = ptr::read(self.data[current_chunk_idx].get_unchecked(offset).as_ptr());
+            let ret = ptr::read(self.get_elem_ptr(current_chunk_idx, offset));
 
             // Shift elements within the current chunk
-            let first_chunk_ptr = self.data.get_unchecked_mut(current_chunk_idx).as_mut_ptr();
+            let first_chunk_ptr = self.get_chunk_mut_ptr(current_chunk_idx);
             let count = N - 1 - offset;
             if count > 0 {
                 ptr::copy(
@@ -131,8 +131,8 @@ impl<T, const N: usize> ChunkedVec<T, N> {
             // Shift elements between chunks
             let until_chunk_idx = (self.len - 1) / N;
             for i in current_chunk_idx..until_chunk_idx {
-                let current_chunk_ptr = self.data.get_unchecked_mut(i).as_mut_ptr();
-                let next_chunk_ptr = self.data.get_unchecked_mut(i + 1).as_mut_ptr();
+                let current_chunk_ptr = self.get_chunk_mut_ptr(i);
+                let next_chunk_ptr = self.get_chunk_mut_ptr(i + 1);
 
                 let val_from_next = ptr::read(next_chunk_ptr);
                 ptr::write(current_chunk_ptr.add(N - 1), val_from_next);
@@ -147,6 +147,54 @@ impl<T, const N: usize> ChunkedVec<T, N> {
             };
             self.data.truncate(required_chunks);
 
+            ret
+        }
+    }
+
+    /// Removes an element from the `ChunkedVec` and returns it.
+    ///
+    /// The removed element is replaced by the last element of the ChunkedVec.
+    ///
+    /// This does not preserve ordering of the remaining elements, but is *O*(1).
+    /// If you need to preserve the element order, use [`remove`] instead.
+    ///
+    /// [`remove`]: ChunkedVec::remove
+    ///
+    /// # Panics
+    ///
+    /// Panics if `index` is out of bounds.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use chunked_vec::chunked_vec;
+    /// let mut v = chunked_vec!["foo", "bar", "baz", "qux"];
+    ///
+    /// assert_eq!(v.swap_remove(1), "bar");
+    /// assert_eq!(v, ["foo", "qux", "baz"]);
+    ///
+    /// assert_eq!(v.swap_remove(0), "foo");
+    /// assert_eq!(v, ["baz", "qux"]);
+    /// ```
+    pub fn swap_remove(&mut self, index: usize) -> T {
+        let len = self.len();
+        if index >= len {
+            panic!("swap_remove index (is {index}) should be < len (is {len})");
+        }
+
+        let current_pos = self.chunk_and_offset(index);
+        unsafe {
+            // We replace self[index] with the last element. Note that if the
+            // bounds check above succeeds there must be a last element (which
+            // can be self[index] itself).
+            let current = self.get_elem_mut_ptr(current_pos.0, current_pos.1);
+            let ret = ptr::read(current);
+
+            let last_pos = self.chunk_and_offset(len - 1);
+            let last = self.get_elem_ptr(last_pos.0, last_pos.1);
+            ptr::copy(last, current, 1);
+
+            self.len -= 1;
             ret
         }
     }
@@ -443,6 +491,7 @@ mod tests {
         vec.push(val3.clone());
 
         assert_eq!(Rc::strong_count(&val2), 2); // One in vec, one in our variable
+
         let removed = vec.remove(1);
         assert_eq!(*removed, 2);
         assert_eq!(Rc::strong_count(&val2), 2); // Now one in removed, one in our variable
@@ -450,5 +499,130 @@ mod tests {
 
         drop(removed);
         assert_eq!(Rc::strong_count(&val2), 1); // Now only our variable holds it
+    }
+
+    // Tests for swap_remove function
+    #[test]
+    fn test_swap_remove_first_element() {
+        let mut vec: ChunkedVec<i32, 3> = ChunkedVecSized::new();
+        vec.push(1);
+        vec.push(2);
+        vec.push(3);
+        vec.push(4);
+
+        let removed = vec.swap_remove(0);
+        assert_eq!(removed, 1);
+        assert_eq!(vec.len(), 3);
+        // Last element (4) should now be at position 0
+        // Vector should now be [4, 2, 3] (order changed)
+    }
+
+    #[test]
+    fn test_swap_remove_middle_element() {
+        let mut vec: ChunkedVec<i32, 3> = ChunkedVecSized::new();
+        for i in 1..=6 {
+            vec.push(i);
+        }
+
+        let removed = vec.swap_remove(2);
+        assert_eq!(removed, 3);
+        assert_eq!(vec.len(), 5);
+        // Last element (6) should now be at position 2
+        // Vector should now be [1, 2, 6, 4, 5]
+    }
+
+    #[test]
+    fn test_swap_remove_last_element() {
+        let mut vec: ChunkedVec<i32, 3> = ChunkedVecSized::new();
+        vec.push(1);
+        vec.push(2);
+        vec.push(3);
+
+        let removed = vec.swap_remove(2);
+        assert_eq!(removed, 3);
+        assert_eq!(vec.len(), 2);
+        // Vector should now be [1, 2] (last element removed, no swap needed)
+    }
+
+    #[test]
+    fn test_swap_remove_single_element() {
+        let mut vec: ChunkedVec<i32, 3> = ChunkedVecSized::new();
+        vec.push(42);
+
+        let removed = vec.swap_remove(0);
+        assert_eq!(removed, 42);
+        assert_eq!(vec.len(), 0);
+        assert!(vec.is_empty());
+    }
+
+    #[test]
+    fn test_swap_remove_across_chunks() {
+        let mut vec: ChunkedVec<i32, 2> = ChunkedVecSized::new();
+        for i in 1..=7 {
+            vec.push(i);
+        }
+        // Chunks: [1,2], [3,4], [5,6], [7]
+
+        let removed = vec.swap_remove(1); // Remove second element
+        assert_eq!(removed, 2);
+        assert_eq!(vec.len(), 6);
+        // Last element (7) should now be at position 1
+        // Should now be [1,7], [3,4], [5,6]
+    }
+
+    #[test]
+    fn test_swap_remove_performance_characteristic() {
+        // Test that swap_remove doesn't shift elements like remove does
+        let mut vec: ChunkedVec<i32, 100> = ChunkedVecSized::new();
+        for i in 0..1000 {
+            vec.push(i);
+        }
+
+        let removed = vec.swap_remove(500);
+        assert_eq!(removed, 500);
+        assert_eq!(vec.len(), 999);
+        // Element 999 (the last element) should now be at position 500
+    }
+
+    #[test]
+    fn test_swap_remove_with_drop_types() {
+        use std::rc::Rc;
+
+        let mut vec: ChunkedVec<Rc<i32>, 3> = ChunkedVecSized::new();
+        let val1 = Rc::new(1);
+        let val2 = Rc::new(2);
+        let val3 = Rc::new(3);
+
+        vec.push(val1.clone());
+        vec.push(val2.clone());
+        vec.push(val3.clone());
+
+        assert_eq!(Rc::strong_count(&val2), 2); // One in vec, one in our variable
+
+        let removed = vec.swap_remove(1);
+        assert_eq!(*removed, 2);
+        assert_eq!(Rc::strong_count(&val2), 2); // Now one in removed, one in our variable
+        assert_eq!(vec.len(), 2);
+
+        drop(removed);
+        assert_eq!(Rc::strong_count(&val2), 1); // Now only our variable holds it
+    }
+
+    #[test]
+    #[should_panic(expected = "swap_remove index (is 5) should be < len (is 3)")]
+    fn test_swap_remove_out_of_bounds() {
+        let mut vec: ChunkedVec<i32, 3> = ChunkedVecSized::new();
+        vec.push(1);
+        vec.push(2);
+        vec.push(3);
+
+        vec.swap_remove(5); // This should panic
+    }
+
+    #[test]
+    #[should_panic(expected = "swap_remove index (is 0) should be < len (is 0)")]
+    fn test_swap_remove_empty_vec() {
+        let mut vec: ChunkedVec<i32, 3> = ChunkedVecSized::new();
+        vec.swap_remove(0); // This should panic
     }
 }
