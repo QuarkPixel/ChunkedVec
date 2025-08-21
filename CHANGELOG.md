@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.3] - 2025-08-21
+
+- Implemented `remove` method to remove an element at a specific index
+- Implemented `swap_remove` method for efficient element removal by swapping with the last element
+- Derived `Debug` trait and implemented `PartialEq` temporarily for ChunkedVec to make doctests happy :)
+
+## [0.3.2] - 2025-08-13
+
+### Fixed
+
+- Fixed `assume_init` bug by changing `ChunkedVec` element type from `T` to `MaybeUninit<T>` and implementing `Drop` to ensure proper memory safety. ([#1](https://github.com/QuarkPixel/ChunkedVec/issues/1))
+
 ## [0.3.1] - 2025-05-05
 
 ### Added
