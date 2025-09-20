@@ -1,3 +1,4 @@
+use likely_stable::unlikely;
 use std::{mem::MaybeUninit, ptr};
 
 use crate::ChunkedVec;
@@ -22,7 +23,9 @@ use crate::ChunkedVec;
 /// ```
 pub struct IntoIter<T, const N: usize> {
     pub(crate) vec: ChunkedVec<T, N>,
-    pub(crate) index: usize,
+    pub(crate) chunk_idx: usize,
+    pub(crate) offset: usize,
+    pub(crate) remaining: usize,
 }
 
 /// Implementation of IntoIterator for ChunkedVec, enabling use in for loops.
@@ -34,8 +37,41 @@ impl<T, const N: usize> IntoIterator for ChunkedVec<T, N> {
 
     fn into_iter(self) -> Self::IntoIter {
         IntoIter {
+            remaining: self.len(),
             vec: self,
-            index: 0,
+            chunk_idx: 0,
+            offset: 0,
+        }
+    }
+}
+
+impl<T, const N: usize> IntoIter<T, N> {
+    /// Advances to the next position.
+    #[inline]
+    unsafe fn advance_position(&mut self) {
+        self.offset += 1;
+        if unlikely(self.offset == N) {
+            self.chunk_idx += 1;
+            self.offset = 0;
+        }
+        self.remaining -= 1;
+    }
+
+    /// Returns a pointer to the current element.
+    #[inline]
+    fn current_ptr(&mut self) -> &mut MaybeUninit<T> {
+        &mut self.vec.data[self.chunk_idx][self.offset]
+    }
+
+    /// Drops all remaining elements without returning them.
+    /// More efficient than calling next() repeatedly.
+    fn drop_remaining(&mut self) {
+        while self.remaining > 0 {
+            unsafe {
+                self.current_ptr().assume_init_drop();
+                *self.current_ptr() = MaybeUninit::uninit();
+                self.advance_position();
+            }
         }
     }
 }
@@ -44,54 +80,31 @@ impl<T, const N: usize> Iterator for IntoIter<T, N> {
     type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.index < self.vec.len() {
-            let index = self.index;
-            self.index += 1;
+        if unlikely(self.remaining == 0) {
+            return None;
+        }
 
-            // Calculate chunk and offset
-            let chunk_idx = index / N;
-            let offset = index % N;
-
-            // Safety: We've already checked bounds and we know this element was initialized
-            unsafe {
-                let elem_ptr = self.vec.data[chunk_idx][offset].as_ptr();
-                let value = ptr::read(elem_ptr);
-
-                // Mark this slot as uninitialized to prevent double-drop
-                self.vec.data[chunk_idx][offset] = MaybeUninit::uninit();
-
-                Some(value)
-            }
-        } else {
-            None
+        unsafe {
+            let value = ptr::read(self.current_ptr().as_ptr());
+            *self.current_ptr() = MaybeUninit::uninit();
+            self.advance_position();
+            Some(value)
         }
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let remaining = self.vec.len() - self.index;
+        let remaining = self.remaining;
         (remaining, Some(remaining))
     }
 }
 
 /// Implementation of Drop for IntoIter to handle partial consumption correctly.
-///
-/// When an IntoIter is dropped, we need to ensure that the ChunkedVec doesn't
-/// try to drop elements that have already been moved out during iteration.
 impl<T, const N: usize> Drop for IntoIter<T, N> {
     fn drop(&mut self) {
-        // 手动释放未消费的元素以防止内存泄漏
-        while self.index < self.vec.len {
-            let chunk_idx = self.index / N;
-            let offset = self.index % N;
+        // Drop all remaining elements
+        self.drop_remaining();
 
-            unsafe {
-                // 释放仍然有效的元素
-                self.vec.data[chunk_idx][offset].assume_init_drop();
-            }
-            self.index += 1;
-        }
-
-        // 现在可以安全地设置len为0，防止ChunkedVec的Drop再次尝试释放
+        // Prevent ChunkedVec's Drop from trying to drop elements again
         self.vec.len = 0;
     }
 }

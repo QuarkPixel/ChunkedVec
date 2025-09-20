@@ -10,3 +10,4 @@ keywords = ["vector", "data-structure", "chunk"]
 categories = ["data-structures"]
 
 [dependencies]
+likely_stable = "0.1.3"

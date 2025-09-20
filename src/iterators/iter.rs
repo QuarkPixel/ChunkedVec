@@ -1,3 +1,7 @@
+use std::mem::MaybeUninit;
+
+use likely_stable::unlikely;
+
 use crate::ChunkedVec;
 
 /// An iterator over the elements of a ChunkedVec.
@@ -6,7 +10,9 @@ use crate::ChunkedVec;
 /// See its documentation for more.
 pub struct Iter<'a, T, const N: usize> {
     pub(crate) vec: &'a ChunkedVec<T, N>,
-    pub(crate) index: usize,
+    pub(crate) chunk_idx: usize,
+    pub(crate) offset: usize,
+    pub(crate) remaining: usize,
 }
 
 impl<T, const N: usize> ChunkedVec<T, N> {
@@ -30,8 +36,29 @@ impl<T, const N: usize> ChunkedVec<T, N> {
     pub fn iter(&self) -> Iter<'_, T, N> {
         Iter {
             vec: self,
-            index: 0,
+            chunk_idx: 0,
+            offset: 0,
+            remaining: self.len(),
         }
+    }
+}
+
+impl<'a, T, const N: usize> Iter<'a, T, N> {
+    /// Advances to the next position.
+    #[inline]
+    unsafe fn advance_position(&mut self) {
+        self.offset += 1;
+        if unlikely(self.offset == N) {
+            self.chunk_idx += 1;
+            self.offset = 0;
+        }
+        self.remaining -= 1;
+    }
+
+    /// Returns a pointer to the current element.
+    #[inline]
+    fn current_ptr(&mut self) -> &'a MaybeUninit<T> {
+        &self.vec.data[self.chunk_idx][self.offset]
     }
 }
 
@@ -39,13 +66,20 @@ impl<'a, T, const N: usize> Iterator for Iter<'a, T, N> {
     type Item = &'a T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.index < self.vec.len() {
-            let index = self.index;
-            self.index += 1;
-            Some(&self.vec[index])
-        } else {
-            None
+        if unlikely(self.remaining == 0) {
+            return None;
         }
+
+        unsafe {
+            let value = self.current_ptr().assume_init_ref();
+            self.advance_position();
+            Some(value)
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = self.remaining;
+        (remaining, Some(remaining))
     }
 }
 

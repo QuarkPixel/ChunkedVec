@@ -1,3 +1,5 @@
+use likely_stable::unlikely;
+
 use crate::ChunkedVec;
 
 /// A mutable iterator over the elements of a ChunkedVec.
@@ -6,7 +8,9 @@ use crate::ChunkedVec;
 /// See its documentation for more.
 pub struct IterMut<'a, T, const N: usize> {
     pub(crate) vec: &'a mut ChunkedVec<T, N>,
-    pub(crate) index: usize,
+    pub(crate) chunk_idx: usize,
+    pub(crate) offset: usize,
+    pub(crate) remaining: usize,
 }
 
 impl<T, const N: usize> ChunkedVec<T, N> {
@@ -30,9 +34,30 @@ impl<T, const N: usize> ChunkedVec<T, N> {
     /// ```
     pub fn iter_mut(&mut self) -> IterMut<'_, T, N> {
         IterMut {
+            remaining: self.len(),
             vec: self,
-            index: 0,
+            chunk_idx: 0,
+            offset: 0,
         }
+    }
+}
+
+impl<'a, T, const N: usize> IterMut<'a, T, N> {
+    /// Advances to the next position.
+    #[inline]
+    fn advance_position(&mut self) {
+        self.offset += 1;
+        if unlikely(self.offset == N) {
+            self.chunk_idx += 1;
+            self.offset = 0;
+        }
+        self.remaining -= 1;
+    }
+
+    /// Returns a pointer to the current element.
+    #[inline]
+    fn current_ptr(&mut self) -> *mut T {
+        self.vec.data[self.chunk_idx][self.offset].as_mut_ptr()
     }
 }
 
@@ -40,19 +65,23 @@ impl<'a, T, const N: usize> Iterator for IterMut<'a, T, N> {
     type Item = &'a mut T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.index < self.vec.len() {
-            let index = self.index;
-            self.index += 1;
-            unsafe {
-                // Safety: We use raw pointer to avoid multiple mutable references.
-                // This is safe because we increment the index before yielding the next element,
-                // ensuring we never yield multiple references to the same element.
-                let ptr = self.vec.get_unchecked_mut(index) as *mut T;
-                Some(&mut *ptr)
-            }
-        } else {
-            None
+        if unlikely(self.remaining == 0) {
+            return None;
         }
+
+        unsafe {
+            // 使用原始指针避免借用冲突
+            let ptr = self.current_ptr();
+            self.advance_position();
+
+            // 将原始指针转换为正确生命周期的引用
+            Some(&mut *ptr)
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = self.remaining;
+        (remaining, Some(remaining))
     }
 }
 
