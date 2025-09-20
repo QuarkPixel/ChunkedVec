@@ -1,4 +1,4 @@
-use std::mem;
+use std::{mem::MaybeUninit, ptr};
 
 use crate::ChunkedVec;
 
@@ -45,13 +45,23 @@ impl<T, const N: usize> Iterator for IntoIter<T, N> {
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.index < self.vec.len() {
-            // Note: This implementation could be optimized in the future by:
-            // 1. Directly accessing chunk data
-            // 2. Batch processing elements within chunks
-            // 3. Avoiding individual element replacement
             let index = self.index;
             self.index += 1;
-            Some(mem::replace(&mut self.vec[index], unsafe { mem::zeroed() }))
+
+            // Calculate chunk and offset
+            let chunk_idx = index / N;
+            let offset = index % N;
+
+            // Safety: We've already checked bounds and we know this element was initialized
+            unsafe {
+                let elem_ptr = self.vec.data[chunk_idx][offset].as_ptr();
+                let value = ptr::read(elem_ptr);
+
+                // Mark this slot as uninitialized to prevent double-drop
+                self.vec.data[chunk_idx][offset] = MaybeUninit::uninit();
+
+                Some(value)
+            }
         } else {
             None
         }
@@ -60,6 +70,29 @@ impl<T, const N: usize> Iterator for IntoIter<T, N> {
     fn size_hint(&self) -> (usize, Option<usize>) {
         let remaining = self.vec.len() - self.index;
         (remaining, Some(remaining))
+    }
+}
+
+/// Implementation of Drop for IntoIter to handle partial consumption correctly.
+///
+/// When an IntoIter is dropped, we need to ensure that the ChunkedVec doesn't
+/// try to drop elements that have already been moved out during iteration.
+impl<T, const N: usize> Drop for IntoIter<T, N> {
+    fn drop(&mut self) {
+        // 手动释放未消费的元素以防止内存泄漏
+        while self.index < self.vec.len {
+            let chunk_idx = self.index / N;
+            let offset = self.index % N;
+
+            unsafe {
+                // 释放仍然有效的元素
+                self.vec.data[chunk_idx][offset].assume_init_drop();
+            }
+            self.index += 1;
+        }
+
+        // 现在可以安全地设置len为0，防止ChunkedVec的Drop再次尝试释放
+        self.vec.len = 0;
     }
 }
 
