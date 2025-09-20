@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.3.4] - 2025-09-21
+
+### Fixed
+
+- Fixed critical zero-initialization panic in `IntoIterator` implementation for heap-allocated types ([#6](https://github.com/QuarkPixel/ChunkedVec/issues/6))
+  - Replaced unsafe `mem::zeroed()` with proper `ptr::read()` from `MaybeUninit` storage
+  - Added proper memory management in `Drop` implementation for `IntoIter` to prevent memory leaks
+  - Fixed double-drop issues when iterator is partially consumed
+
+### Enhanced
+
+- Significantly improved iterator performance across all iterator types:
+  - Cached chunk index and offset calculations to avoid repeated division/modulo operations
+  - Added `unlikely` branch prediction hints for better optimization
+  - Unified iterator implementation patterns with proper abstraction
+- Added `size_hint` implementation for `Iter` and `IterMut` iterators for better collection compatibility
+- Enhanced memory safety with more robust cleanup in partially consumed iterators
+
+### Internal
+
+- Refactored iterator implementations with better separation of concerns:
+  - Extracted `advance_position()` method for cleaner position management
+  - Improved code reuse and maintainability across iterator types
+- Added comprehensive test coverage for heap-allocated types and partial iterator consumption
+
 ## [0.3.3] - 2025-08-21
 
 - Implemented `remove` method to remove an element at a specific index
