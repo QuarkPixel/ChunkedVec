@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.4.0] - 2026-07-04
+
+### Added
+
+- Added `truncate` with `Vec`-style semantics: shrinking length now removes elements without immediately releasing allocated chunks
+- Added `shrink_to_fit` so storage reclamation is an explicit operation instead of an incidental side effect of length-changing APIs
+
+### Changed
+
+- Standardized storage-retention behavior across `clear`, `resize` shrink paths, and `remove`
+- `clear()` now aligns with `Vec::clear()` semantics by clearing elements while retaining allocated storage for reuse
+- `resize(new_len, value)` now delegates shrinking behavior to `truncate`, so `resize(0, value)` no longer frees chunks implicitly
+- `remove()` no longer deallocates trailing chunks as a side effect
+
+### Thanks
+
+- Thanks to [@irkill](https://github.com/irkill) for contributing optional `serde` support in PR [#7](https://github.com/QuarkPixel/ChunkedVec/pull/7) and the initial `clear()` API in PR [#8](https://github.com/QuarkPixel/ChunkedVec/pull/8), which this release builds on
+
 ## [0.3.4] - 2025-09-21
 
 ### Fixed

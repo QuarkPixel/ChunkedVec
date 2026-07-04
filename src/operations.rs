@@ -8,6 +8,38 @@ use std::ptr;
 /// This implementation provides core vector operations such as pushing elements,
 /// querying length and capacity, and managing the internal chunk structure.
 impl<T, const N: usize> ChunkedVec<T, N> {
+    #[inline]
+    fn chunk_count_for_len(len: usize) -> usize {
+        if len == 0 {
+            0
+        } else {
+            len.div_ceil(N)
+        }
+    }
+
+    unsafe fn drop_range(&mut self, start: usize, end: usize) {
+        if !std::mem::needs_drop::<T>() || start >= end {
+            return;
+        }
+
+        let mut index = start;
+        while index < end {
+            let chunk_idx = index / N;
+            let offset = index % N;
+            let to_drop = (end - index).min(N - offset);
+            let chunk_ptr = self.data[chunk_idx].as_mut_ptr();
+
+            unsafe {
+                ptr::drop_in_place(ptr::slice_from_raw_parts_mut(
+                    chunk_ptr.add(offset).cast::<T>(),
+                    to_drop,
+                ));
+            }
+
+            index += to_drop;
+        }
+    }
+
     /// Appends an element to the back of the vector.
     ///
     /// If the current chunk is full, a new chunk will be allocated to store the element.
@@ -47,7 +79,8 @@ impl<T, const N: usize> ChunkedVec<T, N> {
     /// in order to be able to clone the passed value.
     /// If you need more flexibility (or want to rely on [`Default`] instead of
     /// [`Clone`]), use [`ChunkedVec::resize_with`].
-    /// If you only need to resize to a smaller size, use [`Vec::truncate`].
+    /// If you only need to resize to a smaller size, use
+    /// [`ChunkedVec::truncate`].
     ///
     /// # Panics
     ///
@@ -83,32 +116,52 @@ impl<T, const N: usize> ChunkedVec<T, N> {
                 self.data[chunk_idx][offset].write(value.clone());
             }
         } else if new_len < old_len {
-            // 1. Dropar os elementos entre o novo e o antigo tamanho.
-            for i in new_len..old_len {
-                let chunk_idx = i / N;
-                let offset = i % N;
-                unsafe {
-                    let elem_ptr = self.data[chunk_idx][offset].as_mut_ptr();
-                    ptr::drop_in_place(elem_ptr);
-                }
-            }
-            let required_chunks = if new_len == 0 {
-                0
-            } else {
-                (new_len + N - 1) / N
-            };
-            self.data.truncate(required_chunks);
+            self.truncate(new_len);
+            return;
         }
 
         self.len = new_len;
     }
 
+    /// Shortens the vector, keeping the first `len` elements and dropping the
+    /// rest.
+    ///
+    /// Like [`Vec::truncate`], this removes elements without releasing the
+    /// allocated storage. Use [`ChunkedVec::shrink_to_fit`] if you also want
+    /// to discard now-unused chunks.
+    ///
+    /// If `len` is greater than the vector's current length, this has no
+    /// effect.
+    ///
+    /// # Examples
+    /// ```
+    /// use chunked_vec::{ChunkedVec, ChunkedVecSized};
+    ///
+    /// let mut vec: ChunkedVec<i32, 4> = ChunkedVecSized::new();
+    /// vec.extend(0..6);
+    /// vec.truncate(2);
+    /// assert_eq!(vec.len(), 2);
+    /// assert_eq!(vec.allocated_capacity(), 8); // chunks are retained
+    /// ```
+    pub fn truncate(&mut self, len: usize) {
+        if len >= self.len {
+            return;
+        }
+
+        let old_len = self.len;
+        self.len = len;
+
+        unsafe {
+            self.drop_range(len, old_len);
+        }
+    }
+
     /// Clears the vector, removing all values.
     ///
-    /// Note that this method has no effect on the allocated capacity of the
-    /// vector: all chunks are retained and reused by subsequent pushes.
-    /// This differs from [`ChunkedVec::resize`] with `new_len == 0`, which
-    /// frees the chunks.
+    /// Like [`Vec::clear`], this method has no effect on the allocated
+    /// capacity of the vector: all chunks are retained and reused by
+    /// subsequent pushes. Use [`ChunkedVec::shrink_to_fit`] if you also want
+    /// to release now-unused storage.
     ///
     /// # Examples
     /// ```
@@ -121,31 +174,31 @@ impl<T, const N: usize> ChunkedVec<T, N> {
     /// assert_eq!(vec.allocated_capacity(), 4); // chunks are retained
     /// ```
     pub fn clear(&mut self) {
-        let old_len = self.len;
-        // Set len to 0 first so that if an element's Drop panics, the
-        // ChunkedVec Drop impl does not double-drop already-dropped
-        // elements during unwinding (remaining elements leak instead).
-        self.len = 0;
+        self.truncate(0);
+    }
 
-        if !std::mem::needs_drop::<T>() {
-            return;
-        }
-
-        let mut remaining = old_len;
-        for chunk in self.data.iter_mut() {
-            let to_drop = remaining.min(N);
-            if to_drop == 0 {
-                break;
-            }
-            let chunk_ptr = chunk.as_mut_ptr();
-            unsafe {
-                ptr::drop_in_place(ptr::slice_from_raw_parts_mut(
-                    chunk_ptr.cast::<T>(),
-                    to_drop,
-                ));
-            }
-            remaining -= to_drop;
-        }
+    /// Shrinks the allocated storage to fit the current length.
+    ///
+    /// This drops any fully unused chunks and shrinks the internal chunk
+    /// pointer buffer so that capacity more closely matches the current
+    /// length.
+    ///
+    /// # Examples
+    /// ```
+    /// use chunked_vec::{ChunkedVec, ChunkedVecSized};
+    ///
+    /// let mut vec: ChunkedVec<i32, 4> = ChunkedVecSized::new();
+    /// vec.extend(0..6);
+    /// vec.clear();
+    /// assert_eq!(vec.allocated_capacity(), 8);
+    ///
+    /// vec.shrink_to_fit();
+    /// assert_eq!(vec.allocated_capacity(), 0);
+    /// ```
+    pub fn shrink_to_fit(&mut self) {
+        let required_chunks = Self::chunk_count_for_len(self.len);
+        self.data.truncate(required_chunks);
+        self.data.shrink_to_fit();
     }
 
     pub fn remove(&mut self, index: usize) -> T {
@@ -185,12 +238,6 @@ impl<T, const N: usize> ChunkedVec<T, N> {
             }
 
             self.len -= 1;
-            let required_chunks = if self.len == 0 {
-                0
-            } else {
-                (self.len + N - 1) / N
-            };
-            self.data.truncate(required_chunks);
 
             ret
         }
@@ -400,7 +447,7 @@ mod tests {
 
         vec.resize(4, 0);
         assert_eq!(vec.len(), 4);
-        assert_eq!(vec.allocated_capacity(), 6); // 2 chunks after truncate
+        assert_eq!(vec.allocated_capacity(), 9); // chunks are retained
     }
 
     #[test]
@@ -413,6 +460,40 @@ mod tests {
         vec.resize(0, 0);
         assert_eq!(vec.len(), 0);
         assert!(vec.is_empty());
+        assert_eq!(vec.allocated_capacity(), 6);
+    }
+
+    #[test]
+    fn test_truncate_retains_allocated_chunks() {
+        let mut vec: ChunkedVec<i32, 3> = ChunkedVecSized::new();
+        for i in 1..=7 {
+            vec.push(i);
+        }
+
+        vec.truncate(2);
+        assert_eq!(vec.len(), 2);
+        assert_eq!(vec.allocated_capacity(), 9);
+        assert_eq!(vec[0], 1);
+        assert_eq!(vec[1], 2);
+    }
+
+    #[test]
+    fn test_shrink_to_fit_releases_unused_chunks() {
+        let mut vec: ChunkedVec<i32, 3> = ChunkedVecSized::new();
+        for i in 1..=7 {
+            vec.push(i);
+        }
+
+        vec.truncate(4);
+        assert_eq!(vec.allocated_capacity(), 9);
+
+        vec.shrink_to_fit();
+        assert_eq!(vec.allocated_capacity(), 6);
+
+        vec.clear();
+        assert_eq!(vec.allocated_capacity(), 6);
+
+        vec.shrink_to_fit();
         assert_eq!(vec.allocated_capacity(), 0);
     }
 
@@ -524,7 +605,7 @@ mod tests {
         assert_eq!(removed, 42);
         assert_eq!(vec.len(), 0);
         assert!(vec.is_empty());
-        assert_eq!(vec.allocated_capacity(), 0);
+        assert_eq!(vec.allocated_capacity(), 3);
     }
 
     #[test]
@@ -542,25 +623,45 @@ mod tests {
     }
 
     #[test]
-    fn test_remove_causes_chunk_deallocation() {
+    fn test_remove_retains_allocated_chunks() {
         let mut vec: ChunkedVec<i32, 3> = ChunkedVecSized::new();
         for i in 1..=7 {
             vec.push(i);
         }
         assert_eq!(vec.allocated_capacity(), 9); // 3 chunks
 
-        // Remove elements to cause chunk deallocation
         vec.remove(6); // Remove last element
         assert_eq!(vec.len(), 6);
-        assert_eq!(vec.allocated_capacity(), 6); // Should still be 2 chunks
+        assert_eq!(vec.allocated_capacity(), 9);
 
         vec.remove(5); // Remove what's now the last element
         assert_eq!(vec.len(), 5);
+        assert_eq!(vec.allocated_capacity(), 9);
+
         vec.remove(4);
         assert_eq!(vec.len(), 4);
+
         vec.remove(3);
         assert_eq!(vec.len(), 3);
-        assert_eq!(vec.allocated_capacity(), 3); // Should be 1 chunk now
+        assert_eq!(vec.allocated_capacity(), 9);
+    }
+
+    #[test]
+    fn test_remove_then_shrink_to_fit() {
+        let mut vec: ChunkedVec<i32, 3> = ChunkedVecSized::new();
+        for i in 1..=7 {
+            vec.push(i);
+        }
+
+        vec.remove(6);
+        vec.remove(5);
+        vec.remove(4);
+        vec.remove(3);
+        assert_eq!(vec.len(), 3);
+        assert_eq!(vec.allocated_capacity(), 9);
+
+        vec.shrink_to_fit();
+        assert_eq!(vec.allocated_capacity(), 3);
     }
 
     #[test]
