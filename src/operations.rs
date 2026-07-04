@@ -103,6 +103,51 @@ impl<T, const N: usize> ChunkedVec<T, N> {
         self.len = new_len;
     }
 
+    /// Clears the vector, removing all values.
+    ///
+    /// Note that this method has no effect on the allocated capacity of the
+    /// vector: all chunks are retained and reused by subsequent pushes.
+    /// This differs from [`ChunkedVec::resize`] with `new_len == 0`, which
+    /// frees the chunks.
+    ///
+    /// # Examples
+    /// ```
+    /// use chunked_vec::{ChunkedVecSized, ChunkedVec};
+    /// let mut vec: ChunkedVec<i32, 4> = ChunkedVecSized::new();
+    /// vec.push(1);
+    /// vec.push(2);
+    /// vec.clear();
+    /// assert!(vec.is_empty());
+    /// assert_eq!(vec.allocated_capacity(), 4); // chunks are retained
+    /// ```
+    pub fn clear(&mut self) {
+        let old_len = self.len;
+        // Set len to 0 first so that if an element's Drop panics, the
+        // ChunkedVec Drop impl does not double-drop already-dropped
+        // elements during unwinding (remaining elements leak instead).
+        self.len = 0;
+
+        if !std::mem::needs_drop::<T>() {
+            return;
+        }
+
+        let mut remaining = old_len;
+        for chunk in self.data.iter_mut() {
+            let to_drop = remaining.min(N);
+            if to_drop == 0 {
+                break;
+            }
+            let chunk_ptr = chunk.as_mut_ptr();
+            unsafe {
+                ptr::drop_in_place(ptr::slice_from_raw_parts_mut(
+                    chunk_ptr.cast::<T>(),
+                    to_drop,
+                ));
+            }
+            remaining -= to_drop;
+        }
+    }
+
     pub fn remove(&mut self, index: usize) -> T {
         if index >= self.len {
             panic!(
@@ -369,6 +414,65 @@ mod tests {
         assert_eq!(vec.len(), 0);
         assert!(vec.is_empty());
         assert_eq!(vec.allocated_capacity(), 0);
+    }
+
+    #[test]
+    fn test_clear_basic() {
+        let mut vec: ChunkedVec<i32, 2> = ChunkedVecSized::new();
+        for i in 1..=5 {
+            vec.push(i);
+        }
+        assert_eq!(vec.allocated_capacity(), 6); // 3 chunks
+
+        vec.clear();
+        assert_eq!(vec.len(), 0);
+        assert!(vec.is_empty());
+        assert_eq!(vec.allocated_capacity(), 6); // chunks are retained
+        assert_eq!(vec.get(0), None);
+    }
+
+    #[test]
+    fn test_clear_empty() {
+        let mut vec: ChunkedVec<i32, 2> = ChunkedVecSized::new();
+        vec.clear();
+        assert_eq!(vec.len(), 0);
+        assert!(vec.is_empty());
+    }
+
+    #[test]
+    fn test_clear_then_push_reuses_chunks() {
+        let mut vec: ChunkedVec<i32, 2> = ChunkedVecSized::new();
+        for i in 1..=5 {
+            vec.push(i);
+        }
+
+        vec.clear();
+        vec.push(10);
+        vec.push(20);
+        vec.push(30);
+        assert_eq!(vec.len(), 3);
+        assert_eq!(vec[0], 10);
+        assert_eq!(vec[1], 20);
+        assert_eq!(vec[2], 30);
+        assert_eq!(vec.allocated_capacity(), 6); // still the original 3 chunks
+
+        vec.clear();
+        assert!(vec.is_empty());
+    }
+
+    #[test]
+    fn test_clear_drops_elements() {
+        use std::rc::Rc;
+
+        let mut vec: ChunkedVec<Rc<i32>, 2> = ChunkedVecSized::new();
+        let val = Rc::new(42);
+        for _ in 0..5 {
+            vec.push(val.clone());
+        }
+        assert_eq!(Rc::strong_count(&val), 6); // 5 in vec, 1 in our variable
+
+        vec.clear();
+        assert_eq!(Rc::strong_count(&val), 1); // all vec clones dropped
     }
 
     #[test]
