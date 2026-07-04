@@ -5,6 +5,12 @@
 //! - Standard vector-like interface
 //! - Index-based access with bounds checking
 //!
+//! # Feature flags
+//! - `serde` — enables [`serde::Serialize`](https://docs.rs/serde/latest/serde/trait.Serialize.html)
+//!   and [`serde::Deserialize`](https://docs.rs/serde/latest/serde/trait.Deserialize.html) for
+//!   `ChunkedVec<T, N>`, serialized as a plain sequence interoperable with `Vec<T>`.
+//!   Disabled by default.
+//!
 //! # Example
 //! ```
 //! use chunked_vec::ChunkedVec;
@@ -25,6 +31,8 @@ mod index;
 pub(crate) mod internal;
 mod iterators;
 mod operations;
+#[cfg(feature = "serde")]
+mod serde;
 mod traits;
 
 pub use chunked_vec::*;
