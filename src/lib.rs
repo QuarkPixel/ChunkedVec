@@ -33,6 +33,7 @@ mod iterators;
 mod operations;
 #[cfg(feature = "serde")]
 mod serde;
+mod sort;
 mod traits;
 
 pub use chunked_vec::*;
